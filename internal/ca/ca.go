@@ -45,7 +45,7 @@ func New(cfg *config.Config, store storage.Storage) (*Service, error) {
 }
 
 func (s *Service) initializeCA() error {
-	caCertBytes, err := s.storage.GetCACertificate()
+	caCertBytes, err := s.storage.GetCACertificate() // Corrected call
 	if err == nil && len(caCertBytes) > 0 {
 		block, _ := pem.Decode(caCertBytes)
 		if block == nil || block.Type != "CERTIFICATE" {

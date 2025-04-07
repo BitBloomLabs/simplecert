@@ -22,12 +22,24 @@ func main() {
 	fmt.Printf("Configuration: %+v\n", cfg)
 
 	// Initialize storage
-	store, err := storage.NewFileStorage(cfg.DataDir)
+	store, err := storage.NewStorage(
+		cfg.StorageType,
+		cfg.DataDir,
+		cfg.DBHost,
+		cfg.DBUser,
+		cfg.DBPassword,
+		cfg.DBName,
+		cfg.DBPort,
+		cfg.DBSSLMode,
+		cfg.DBCert,
+		cfg.DBKey,
+		cfg.DBRootCert,
+	)
 	if err != nil {
 		log.Fatalf("Failed to initialize storage: %v", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Storage initialized in: %s\n", cfg.DataDir)
+	fmt.Printf("Storage initialized using %s\n", cfg.StorageType)
 
 	// Initialize CA
 	caService, err := ca.New(cfg, store)
@@ -43,8 +55,7 @@ func main() {
 	})
 	http.HandleFunc("/sign", handleSignRequest(caService))
 	http.HandleFunc("/crl", handleGetCRL(caService))
-
-	// http.HandleFunc("/revoke", handleRevoke(caService))
+	http.HandleFunc("/revoke", handleRevoke(caService))
 
 	addr := ":8080"
 	fmt.Printf("Listening on %s\n", addr)
@@ -55,21 +66,21 @@ func main() {
 	}
 }
 
-// func handleRevoke(caService *ca.Service) http.HandlerFunc {
-// 	return func(w http.ResponseWriter, r *http.Request) {
-// 		serial := r.URL.Query().Get("serial")
-// 		if serial == "" {
-// 			http.Error(w, "Missing 'serial' parameter", http.StatusBadRequest)
-// 			return
-// 		}
-// 		err := caService.RevokeCertificate(serial)
-// 		if err != nil {
-// 			http.Error(w, fmt.Sprintf("Failed to revoke certificate: %v", err), http.StatusInternalServerError)
-// 			return
-// 		}
-// 		fmt.Fprintf(w, "Certificate with serial '%s' revoked", serial)
-// 	}
-// }
+func handleRevoke(caService *ca.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		serial := r.URL.Query().Get("serial")
+		if serial == "" {
+			http.Error(w, "Missing 'serial' parameter", http.StatusBadRequest)
+			return
+		}
+		err := caService.RevokeCertificate(serial)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to revoke certificate: %v", err), http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprintf(w, "Certificate with serial '%s' revoked", serial)
+	}
+}
 
 func handleSignRequest(caService *ca.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

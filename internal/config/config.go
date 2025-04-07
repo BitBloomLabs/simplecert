@@ -17,6 +17,16 @@ type Config struct {
 	CACertValidityYears     int    // Validity period of the CA certificate in years
 	DefaultCertValidityDays int    // Default validity period for issued certificates in days
 	CRLValidityHours        int    // Validity period for the CRL in hours
+	StorageType             string // Storage type: "file" or "postgres"
+	DBHost                  string // PostgreSQL host
+	DBUser                  string // PostgreSQL user
+	DBPassword              string // PostgreSQL password
+	DBName                  string // PostgreSQL database name
+	DBPort                  int    // PostgreSQL port
+	DBSSLMode               string // PostgreSQL SSL mode
+	DBCert                  string // PostgreSQL client certificate file
+	DBKey                   string // PostgreSQL client private key file
+	DBRootCert              string // PostgreSQL root CA certificate file
 	// Add other configuration options here later
 }
 
@@ -30,6 +40,16 @@ const (
 	defaultCACertValidityYears = 10
 	defaultCertValidityDays    = 365
 	defaultCRLValidityHours    = 24
+	defaultStorageType         = "file"
+	defaultDBHost              = "localhost"
+	defaultDBUser              = "simplecert"
+	defaultDBPassword          = "password"
+	defaultDBName              = "simplecert"
+	defaultDBPort              = 5432
+	defaultDBSSLMode           = "disable" // Default to disable SSL
+	defaultDBCert              = ""
+	defaultDBKey               = ""
+	defaultDBRootCert          = ""
 )
 
 // LoadConfig loads the CA configuration from environment variables or defaults.
@@ -44,6 +64,16 @@ func LoadConfig() (*Config, error) {
 		CACertValidityYears:     getEnvAsInt("SIMPLECERT_CA_VALIDITY_YEARS", defaultCACertValidityYears),
 		DefaultCertValidityDays: getEnvAsInt("SIMPLECERT_DEFAULT_CERT_VALIDITY_DAYS", defaultCertValidityDays),
 		CRLValidityHours:        getEnvAsInt("SIMPLECERT_CRL_VALIDITY_HOURS", defaultCRLValidityHours),
+		StorageType:             getEnv("SIMPLECERT_STORAGE_TYPE", defaultStorageType),
+		DBHost:                  getEnv("SIMPLECERT_DB_HOST", defaultDBHost),
+		DBUser:                  getEnv("SIMPLECERT_DB_USER", defaultDBUser),
+		DBPassword:              getEnv("SIMPLECERT_DB_PASSWORD", defaultDBPassword),
+		DBName:                  getEnv("SIMPLECERT_DB_NAME", defaultDBName),
+		DBPort:                  getEnvAsInt("SIMPLECERT_DB_PORT", defaultDBPort),
+		DBSSLMode:               getEnv("SIMPLECERT_DB_SSLMODE", defaultDBSSLMode),
+		DBCert:                  getEnv("SIMPLECERT_DB_CERT", defaultDBCert),
+		DBKey:                   getEnv("SIMPLECERT_DB_KEY", defaultDBKey),
+		DBRootCert:              getEnv("SIMPLECERT_DB_ROOTCERT", defaultDBRootCert),
 	}
 	// Add more configuration loading logic here later
 	return cfg, nil
