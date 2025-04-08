@@ -62,6 +62,13 @@ func main() {
 	}
 	logger.Info("CA service initialized", zap.Bool("is_initialized", caService.IsInitialized()))
 
+	// Ensure HTTPS certificates
+	certFile, keyFile, err := ca.EnsureHTTPSCertificates(cfg)
+	if err != nil {
+		logger.Fatal("failed to ensure HTTPS certificates", zap.Error(err))
+		os.Exit(1)
+	}
+
 	// Register HTTP handlers
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Simple Cert CA is running!")
@@ -70,11 +77,10 @@ func main() {
 	http.HandleFunc("/crl", handleGetCRL(caService, cfg))
 	http.HandleFunc("/revoke", handleRevoke(caService, cfg))
 
-	addr := ":8080"
-	logger.Info("listening on address", zap.String("address", addr))
-	err = http.ListenAndServe(addr, nil)
+	logger.Info("listening on address", zap.String("address", cfg.HTTPSAddress))
+	err = http.ListenAndServeTLS(cfg.HTTPSAddress, certFile, keyFile, nil)
 	if err != nil {
-		logger.Fatal("error starting HTTP server", zap.Error(err), zap.String("address", addr))
+		logger.Fatal("error starting HTTPS server", zap.Error(err), zap.String("address", cfg.HTTPSAddress))
 		os.Exit(1)
 	}
 }
@@ -112,7 +118,7 @@ func handleSignRequest(caService *ca.Service, cfg *config.Config) http.HandlerFu
 		signedCertPEM, err := caService.SignCertificate(csrBytes)
 		if err != nil {
 			logger.Error("failed to sign certificate", zap.Error(err))
-			http.Error(w, fmt.Sprintf("Failed to sign certificate: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Failed to sign certificate: %v", err), http.StatusBadRequest)
 			return
 		}
 

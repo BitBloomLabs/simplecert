@@ -31,6 +31,9 @@ type Config struct {
 	Users                   map[string]User     // User credentials and roles (Deprecated)
 	APIKeys                 map[string]APIKey   // API keys and their roles
 	CertificatePolicies     CertificatePolicies // Certificate policies
+	HTTPSCertFile           string              // Path to the HTTPS certificate file
+	HTTPSKeyFile            string              // Path to the HTTPS private key file
+	HTTPSAddress            string              // The address to listen on for HTTPS
 	// Add other configuration options here later
 }
 
@@ -72,6 +75,9 @@ const (
 	defaultDBCert              = ""
 	defaultDBKey               = ""
 	defaultDBRootCert          = ""
+	defaultHTTPSCertFile       = "./data/https.crt"
+	defaultHTTPSKeyFile        = "./data/https.key"
+	defaultHTTPSAddress        = ":8443"
 )
 
 var defaultAPIKeys = map[string]APIKey{
@@ -115,6 +121,9 @@ func LoadConfig() (*Config, error) {
 		Users:                   defaultUsers,   // Deprecated
 		APIKeys:                 defaultAPIKeys, // Use API keys instead
 		CertificatePolicies:     defaultCertificatePolicies,
+		HTTPSCertFile:           getEnv("SIMPLECERT_HTTPS_CERT_FILE", defaultHTTPSCertFile),
+		HTTPSKeyFile:            getEnv("SIMPLECERT_HTTPS_KEY_FILE", defaultHTTPSKeyFile),
+		HTTPSAddress:            getEnv("SIMPLECERT_HTTPS_ADDRESS", defaultHTTPSAddress),
 	}
 	// Add more configuration loading logic here later
 	return cfg, nil
