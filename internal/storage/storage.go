@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+	"strings"
+
+	// "os"
+	// "path/filepath"
 	"time"
 
 	_ "github.com/lib/pq" // Import the PostgreSQL driver
@@ -39,6 +41,16 @@ type Storage interface {
 	// Methods for revoked certificates
 	SaveRevokedCertificate(serial string, revocationTime time.Time) error
 	GetRevokedCertificates() (map[string]time.Time, error)
+	// Methods for users and API keys
+	SaveUser(username string, password string, roles []string) error
+	GetUser(username string) (string, []string, error)
+	SaveAPIKey(apiKey string, roles []string) error
+	GetAPIKey(apiKey string) ([]string, error)
+	// User management methods
+	AddUser(username string, password string, roles []string) error
+	UpdateUser(username string, password string, roles []string) error
+	DeleteUser(username string) error
+	ListUsers() (map[string][]string, error)
 	// Add other storage methods as needed
 }
 
@@ -64,132 +76,13 @@ type PostgreSQLStorage struct {
 // NewStorage creates a new Storage instance based on the configuration.
 func NewStorage(storageType string, dataDir string, dbHost string, dbUser string, dbPassword string, dbName string, dbPort int, dbSSLMode string, dbCert string, dbKey string, dbRootCert string) (Storage, error) {
 	switch storageType {
-	case "file":
-		return NewFileStorage(dataDir)
+	// case "file":
+	// 	return NewFileStorage(dataDir)
 	case "postgres":
 		return NewPostgreSQLStorage(dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode, dbCert, dbKey, dbRootCert)
 	default:
 		return nil, fmt.Errorf("storage: invalid storage type: %s", storageType)
 	}
-}
-
-// NewFileStorage creates a new FileStorage instance.
-func NewFileStorage(dataDir string) (*FileStorage, error) {
-	err := os.MkdirAll(filepath.Join(dataDir, "certs"), 0755)
-	if err != nil {
-		return nil, fmt.Errorf("storage: failed to create certs directory: %w", err)
-	}
-	err = os.MkdirAll(filepath.Join(dataDir, "crl"), 0755)
-	if err != nil {
-		return nil, fmt.Errorf("storage: failed to create crl directory: %w", err)
-	}
-	err = os.MkdirAll(filepath.Join(dataDir, "ca"), 0755)
-	if err != nil {
-		return nil, fmt.Errorf("storage: failed to create ca directory: %w", err)
-	}
-	return &FileStorage{dataDir: dataDir}, nil
-}
-
-// SaveCertificate saves a certificate to a file.
-func (fs *FileStorage) SaveCertificate(serial string, certBytes []byte) error {
-	filename := filepath.Join(fs.dataDir, "certs", serial+".crt")
-	err := os.WriteFile(filename, certBytes, 0644)
-	if err != nil {
-		return fmt.Errorf("storage: failed to save certificate to file: %w", err)
-	}
-	logger.Info("certificate saved to file", zap.String("serial", serial), zap.String("filename", filename))
-	return nil
-}
-
-// GetCertificate retrieves a certificate from a file.
-func (fs *FileStorage) GetCertificate(serial string) ([]byte, error) {
-	filename := filepath.Join(fs.dataDir, "certs", serial+".crt")
-	certBytes, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("storage: failed to read certificate from file: %w", err)
-	}
-	logger.Info("certificate read from file", zap.String("serial", serial), zap.String("filename", filename))
-	return certBytes, nil
-}
-
-// SaveCRL saves the CRL to a file.
-func (fs *FileStorage) SaveCRL(crlBytes []byte) error {
-	filename := filepath.Join(fs.dataDir, "crl", "crl.pem")
-	err := os.WriteFile(filename, crlBytes, 0644)
-	if err != nil {
-		return fmt.Errorf("storage: failed to save CRL to file: %w", err)
-	}
-	logger.Info("CRL saved to file", zap.String("filename", filename))
-	return nil
-}
-
-// GetLatestCRL retrieves the latest CRL from a file.
-func (fs *FileStorage) GetLatestCRL() ([]byte, error) {
-	filename := filepath.Join(fs.dataDir, "crl", "crl.pem")
-	crlBytes, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("storage: failed to read CRL from file: %w", err)
-	}
-	logger.Info("CRL read from file", zap.String("filename", filename))
-	return crlBytes, nil
-}
-
-// SaveCAPrivateKey saves the CA's private key to a file.
-func (fs *FileStorage) SaveCAPrivateKey(keyBytes []byte) error {
-	filename := filepath.Join(fs.dataDir, "ca", "ca.key")
-	err := os.WriteFile(filename, keyBytes, 0600) // Sensitive data, restrict permissions
-	if err != nil {
-		return fmt.Errorf("storage: failed to save CA private key to file: %w", err)
-	}
-	logger.Info("CA private key saved to file", zap.String("filename", filename))
-	return nil
-}
-
-// GetCAPrivateKey retrieves the CA's private key from a file.
-func (fs *FileStorage) GetCAPrivateKey() ([]byte, error) {
-	filename := filepath.Join(fs.dataDir, "ca", "ca.key")
-	keyBytes, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("storage: failed to read CA private key from file: %w", err)
-	}
-	logger.Info("CA private key read from file", zap.String("filename", filename))
-	return keyBytes, nil
-}
-
-// SaveCACertificate saves the CA's certificate to a file.
-func (fs *FileStorage) SaveCACertificate(certBytes []byte) error {
-	filename := filepath.Join(fs.dataDir, "ca", "ca.crt")
-	err := os.WriteFile(filename, certBytes, 0644)
-	if err != nil {
-		return fmt.Errorf("storage: failed to save CA certificate to file: %w", err)
-	}
-	logger.Info("CA certificate saved to file", zap.String("filename", filename))
-	return nil
-}
-
-// GetCACertificate retrieves the CA's certificate from a file.
-func (fs *FileStorage) GetCACertificate() ([]byte, error) {
-	filename := filepath.Join(fs.dataDir, "ca", "ca.crt")
-	certBytes, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("storage: failed to read CA certificate from file: %w", err)
-	}
-	logger.Info("CA certificate read from file", zap.String("filename", filename))
-	return certBytes, nil
-}
-
-// SaveRevokedCertificate is a placeholder for file storage.
-func (fs *FileStorage) SaveRevokedCertificate(serial string, revocationTime time.Time) error {
-	// In a real implementation, you would save this to a file or database.
-	logger.Warn("SaveRevokedCertificate is a placeholder for file storage. Revocations are not persisted.", zap.String("serial", serial))
-	return nil
-}
-
-// GetRevokedCertificates is a placeholder for file storage.
-func (fs *FileStorage) GetRevokedCertificates() (map[string]time.Time, error) {
-	// In a real implementation, you would load this from a file or database.
-	logger.Warn("GetRevokedCertificates is a placeholder for file storage. Revocations are not persisted.")
-	return make(map[string]time.Time), nil
 }
 
 // NewPostgreSQLStorage creates a new PostgreSQLStorage instance.
@@ -264,6 +157,30 @@ func NewPostgreSQLStorage(dbHost string, dbUser string, dbPassword string, dbNam
 	if err != nil {
 		db.Close()
 		return nil, fmt.Errorf("storage: failed to create ca_data table: %w", err)
+	}
+
+	// Create users and api_keys tables
+	_, err = db.ExecContext(context.Background(), `
+		CREATE TABLE IF NOT EXISTS users (
+			username TEXT PRIMARY KEY,
+			password TEXT NOT NULL,
+			roles TEXT[] NOT NULL
+		);
+	`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("storage: failed to create users table: %w", err)
+	}
+
+	_, err = db.ExecContext(context.Background(), `
+		CREATE TABLE IF NOT EXISTS api_keys (
+			api_key TEXT PRIMARY KEY,
+			roles TEXT[] NOT NULL
+		);
+	`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("storage: failed to create api_keys table: %w", err)
 	}
 
 	s := &PostgreSQLStorage{
@@ -434,4 +351,156 @@ func (s *PostgreSQLStorage) GetRevokedCertificates() (map[string]time.Time, erro
 
 	logger.Info("revoked certificates retrieved from database", zap.Int("count", len(revokedCerts)))
 	return revokedCerts, nil
+}
+
+// formatStringArrayForPostgres formats a string slice for PostgreSQL array syntax.
+func formatStringArrayForPostgres(arr []string) string {
+	quoted := make([]string, len(arr))
+	for i, s := range arr {
+		quoted[i] = fmt.Sprintf("%q", s)
+	}
+	return "{" + strings.Join(quoted, ",") + "}"
+}
+
+// SaveUser saves a user to the PostgreSQL database.
+func (s *PostgreSQLStorage) SaveUser(username string, password string, roles []string) error {
+	_, err := s.db.ExecContext(context.Background(),
+		"INSERT INTO users (username, password, roles) VALUES ($1, $2, $3) ON CONFLICT (username) DO UPDATE SET password = $2, roles = $3",
+		username, password, formatStringArrayForPostgres(roles),
+	)
+	if err != nil {
+		return fmt.Errorf("storage: failed to save user: %w", err)
+	}
+	logger.Info("user saved to database", zap.String("username", username))
+	return nil
+}
+
+// GetUser retrieves a user from the PostgreSQL database.
+func (s *PostgreSQLStorage) GetUser(username string) (string, []string, error) {
+	row := s.db.QueryRowContext(context.Background(), "SELECT password, roles FROM users WHERE username = $1", username)
+	var password string
+	var roles string // Change roles type to string
+	err := row.Scan(&password, &roles)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			logger.Info("user not found in database", zap.String("username", username))
+			return "", nil, nil // User not found
+		}
+		return "", nil, fmt.Errorf("storage: failed to get user: %w", err)
+	}
+
+	// Convert the string representation of the array back to a slice
+	rolesSlice := strings.Split(strings.Trim(roles, "{}"), ",")
+	if len(rolesSlice) == 1 && rolesSlice[0] == "" {
+		rolesSlice = []string{} // Handle empty array case
+	}
+
+	logger.Info("user retrieved from database", zap.String("username", username))
+	return password, rolesSlice, nil
+}
+
+// SaveAPIKey saves an API key to the PostgreSQL database.
+func (s *PostgreSQLStorage) SaveAPIKey(apiKey string, roles []string) error {
+	_, err := s.db.ExecContext(context.Background(),
+		"INSERT INTO api_keys (api_key, roles) VALUES ($1, $2) ON CONFLICT (api_key) DO UPDATE SET roles = $2",
+		apiKey, formatStringArrayForPostgres(roles),
+	)
+	if err != nil {
+		return fmt.Errorf("storage: failed to save API key: %w", err)
+	}
+	logger.Info("API key saved to database", zap.String("api_key", apiKey))
+	return nil
+}
+
+// GetAPIKey retrieves an API key from the PostgreSQL database.
+func (s *PostgreSQLStorage) GetAPIKey(apiKey string) ([]string, error) {
+	row := s.db.QueryRowContext(context.Background(), "SELECT roles FROM api_keys WHERE api_key = $1", apiKey)
+	var roles string // Change roles type to string
+	err := row.Scan(&roles)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			logger.Info("API key not found in database", zap.String("api_key", apiKey))
+			return nil, nil // API key not found
+		}
+		return nil, fmt.Errorf("storage: failed to get API key: %w", err)
+	}
+
+	// Convert the string representation of the array back to a slice
+	rolesSlice := strings.Split(strings.Trim(roles, "{}"), ",")
+	if len(rolesSlice) == 1 && rolesSlice[0] == "" {
+		rolesSlice = []string{} // Handle empty array case
+	}
+
+	logger.Info("API key retrieved from database", zap.String("api_key", apiKey))
+	return rolesSlice, nil
+}
+
+// AddUser adds a new user to the PostgreSQL database.
+func (s *PostgreSQLStorage) AddUser(username string, password string, roles []string) error {
+	_, err := s.db.ExecContext(context.Background(),
+		"INSERT INTO users (username, password, roles) VALUES ($1, $2, $3)",
+		username, password, formatStringArrayForPostgres(roles),
+	)
+	if err != nil {
+		return fmt.Errorf("storage: failed to add user: %w", err)
+	}
+	logger.Info("user added to database", zap.String("username", username))
+	return nil
+}
+
+// UpdateUser updates an existing user in the PostgreSQL database.
+func (s *PostgreSQLStorage) UpdateUser(username string, password string, roles []string) error {
+	_, err := s.db.ExecContext(context.Background(),
+		"UPDATE users SET password = $2, roles = $3 WHERE username = $1",
+		username, password, formatStringArrayForPostgres(roles),
+	)
+	if err != nil {
+		return fmt.Errorf("storage: failed to update user: %w", err)
+	}
+	logger.Info("user updated in database", zap.String("username", username))
+	return nil
+}
+
+// DeleteUser deletes a user from the PostgreSQL database.
+func (s *PostgreSQLStorage) DeleteUser(username string) error {
+	_, err := s.db.ExecContext(context.Background(),
+		"DELETE FROM users WHERE username = $1",
+		username,
+	)
+	if err != nil {
+		return fmt.Errorf("storage: failed to delete user: %w", err)
+	}
+	logger.Info("user deleted from database", zap.String("username", username))
+	return nil
+}
+
+// ListUsers retrieves all users from the PostgreSQL database.
+func (s *PostgreSQLStorage) ListUsers() (map[string][]string, error) {
+	rows, err := s.db.QueryContext(context.Background(), "SELECT username, roles FROM users")
+	if err != nil {
+		return nil, fmt.Errorf("storage: failed to list users: %w", err)
+	}
+	defer rows.Close()
+
+	users := make(map[string][]string)
+	for rows.Next() {
+		var username string
+		var rolesString string // Change roles type to string
+		if err := rows.Scan(&username, &rolesString); err != nil {
+			return nil, fmt.Errorf("storage: failed to scan user row: %w", err)
+		}
+
+		// Convert the string representation of the array back to a slice
+		rolesSlice := strings.Split(strings.Trim(rolesString, "{}"), ",")
+		if len(rolesSlice) == 1 && rolesSlice[0] == "" {
+			rolesSlice = []string{} // Handle empty array case
+		}
+		users[username] = rolesSlice
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("storage: error iterating user rows: %w", err)
+	}
+
+	logger.Info("users listed from database", zap.Int("count", len(users)))
+	return users, nil
 }

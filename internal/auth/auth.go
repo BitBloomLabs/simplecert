@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/BitBloomLabs/simplecert/internal/config"
+	"github.com/BitBloomLabs/simplecert/internal/storage"
 	"go.uber.org/zap"
 )
 
@@ -15,21 +15,25 @@ func init() {
 	logger = zap.L().With(zap.String("package", "auth"))
 }
 
-// AuthenticateAPIKey authenticates the request using the API key from the headers.
+// AuthenticateAPIKey authenticates the request using the API key from the headers and storage.
 // It returns the roles associated with the API key if authentication is successful,
 // or an error if authentication fails.
-func AuthenticateAPIKey(r *http.Request, cfg *config.Config) ([]string, error) {
-	apiKey := r.Header.Get("X-API-Key")
-	if apiKey == "" {
-		return nil, fmt.Errorf("auth: missing API key")
+func AuthenticateAPIKey(r *http.Request, store storage.Storage) ([]string, error) {
+	apiKey, err := GetAPIKeyFromHeader(r)
+	if err != nil {
+		return nil, fmt.Errorf("auth: %w", err)
 	}
 
-	apiKeyConfig, ok := cfg.APIKeys[apiKey]
-	if !ok {
+	roles, err := store.GetAPIKey(apiKey)
+	if err != nil {
+		return nil, fmt.Errorf("auth: failed to get API key from storage: %w", err)
+	}
+
+	if roles == nil {
 		return nil, fmt.Errorf("auth: invalid API key")
 	}
 
-	return apiKeyConfig.Roles, nil
+	return roles, nil
 }
 
 // AuthorizeRequest checks if the given roles are authorized to perform the requested action.
