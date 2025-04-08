@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/BitBloomLabs/simplecert/internal/auth"
 	"github.com/BitBloomLabs/simplecert/internal/ca"
 	"github.com/BitBloomLabs/simplecert/internal/config"
 	"github.com/BitBloomLabs/simplecert/internal/storage"
@@ -65,9 +66,9 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Simple Cert CA is running!")
 	})
-	http.HandleFunc("/sign", handleSignRequest(caService))
-	http.HandleFunc("/crl", handleGetCRL(caService))
-	http.HandleFunc("/revoke", handleRevoke(caService))
+	http.HandleFunc("/sign", handleSignRequest(caService, cfg))
+	http.HandleFunc("/crl", handleGetCRL(caService, cfg))
+	http.HandleFunc("/revoke", handleRevoke(caService, cfg))
 
 	addr := ":8080"
 	logger.Info("listening on address", zap.String("address", addr))
@@ -78,8 +79,22 @@ func main() {
 	}
 }
 
-func handleSignRequest(caService *ca.Service) http.HandlerFunc {
+func handleSignRequest(caService *ca.Service, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Authenticate and Authorize
+		roles, err := auth.AuthenticateAPIKey(r, cfg)
+		if err != nil {
+			logger.Warn("authentication failed for /sign", zap.Error(err))
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		if err := auth.AuthorizeRequest("issuer", roles); err != nil {
+			logger.Warn("authorization failed for /sign", zap.Error(err))
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			logger.Warn("method not allowed for /sign", zap.String("method", r.Method))
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -111,8 +126,22 @@ func handleSignRequest(caService *ca.Service) http.HandlerFunc {
 	}
 }
 
-func handleGetCRL(caService *ca.Service) http.HandlerFunc {
+func handleGetCRL(caService *ca.Service, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Authenticate and Authorize (Example - You might not require auth for CRL)
+		roles, err := auth.AuthenticateAPIKey(r, cfg)
+		if err != nil {
+			logger.Warn("authentication failed for /crl", zap.Error(err))
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		if err := auth.AuthorizeRequest("revoker", roles); err != nil {
+			logger.Warn("authorization failed for /crl", zap.Error(err))
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
 		if r.Method != http.MethodGet {
 			logger.Warn("method not allowed for /crl", zap.String("method", r.Method))
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -136,8 +165,22 @@ func handleGetCRL(caService *ca.Service) http.HandlerFunc {
 	}
 }
 
-func handleRevoke(caService *ca.Service) http.HandlerFunc {
+func handleRevoke(caService *ca.Service, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Authenticate and Authorize
+		roles, err := auth.AuthenticateAPIKey(r, cfg)
+		if err != nil {
+			logger.Warn("authentication failed for /revoke", zap.Error(err))
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		if err := auth.AuthorizeRequest("revoker", roles); err != nil {
+			logger.Warn("authorization failed for /revoke", zap.Error(err))
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
 		if r.Method != http.MethodGet {
 			logger.Warn("method not allowed for /revoke", zap.String("method", r.Method))
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -151,7 +194,7 @@ func handleRevoke(caService *ca.Service) http.HandlerFunc {
 			return
 		}
 
-		err := caService.RevokeCertificate(serial)
+		err = caService.RevokeCertificate(serial)
 		if err != nil {
 			logger.Error("failed to revoke certificate", zap.Error(err), zap.String("serial", serial))
 			http.Error(w, fmt.Sprintf("Failed to revoke certificate: %v", err), http.StatusInternalServerError)

@@ -228,7 +228,7 @@ func (s *Service) SignCertificate(csrPEM []byte) ([]byte, error) {
 		Subject:               csr.Subject,
 		Issuer:                s.caCert.Subject,
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(s.config.DefaultCertValidityDays, 0, 0), // Assuming you'll add this to config
+		NotAfter:              time.Now().AddDate(s.config.DefaultCertValidityDays, 0, 0), // Use default validity
 		PublicKey:             csr.PublicKey,
 		SignatureAlgorithm:    csr.SignatureAlgorithm,
 		SubjectKeyId:          generateSubjectKeyID(csr.PublicKey),
@@ -239,13 +239,28 @@ func (s *Service) SignCertificate(csrPEM []byte) ([]byte, error) {
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}, // Common extended usages
 	}
 
+	// Apply Certificate Policies
+	if err := ValidateKeyUsage(template.KeyUsage, s.config.CertificatePolicies.AllowedKeyUsages); err != nil {
+		return nil, fmt.Errorf("ca: invalid key usage: %w", err)
+	}
+
+	if err := ValidateExtKeyUsage(template.ExtKeyUsage, s.config.CertificatePolicies.AllowedExtKeyUsages); err != nil {
+		return nil, fmt.Errorf("ca: invalid extended key usage: %w", err)
+	}
+
+	// Validity period validation
+	requestedNotAfter := time.Now().AddDate(0, 0, s.config.CertificatePolicies.DefaultValidityDays)
+	if err := ValidateValidityPeriod(requestedNotAfter, time.Now(), s.config.CertificatePolicies.DefaultValidityDays); err != nil {
+		return nil, fmt.Errorf("ca: invalid validity period: %w", err)
+	}
+
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, s.caCert, csr.PublicKey, s.caKey)
 	if err != nil {
 		return nil, fmt.Errorf("ca: failed to create certificate: %w", err)
 	}
 
 	certPEM := new(bytes.Buffer)
-	if err := pem.Encode(certPEM, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil { // Added error check
+	if err := pem.Encode(certPEM, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
 		return nil, fmt.Errorf("ca: failed to encode certificate to PEM: %w", err)
 	}
 
